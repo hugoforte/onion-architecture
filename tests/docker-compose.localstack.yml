@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack_terraform
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=ec2,ecs,rds,s3,sqs,sns,cloudwatch,iam,secretsmanager,logs,kms
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - LAMBDA_EXECUTOR=docker
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - "./init-aws.sh:/docker-entrypoint-initaws.d/init.sh"
+      - "${TMPDIR:-/tmp}/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - localstack-network
+
+  terraform:
+    image: hashicorp/terraform:latest
+    container_name: terraform_test
+    working_dir: /terraform
+    volumes:
+      - ".:/terraform"
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      - localstack
+    networks:
+      - localstack-network
+    command: /bin/sh
+
+networks:
+  localstack-network:
+    driver: bridge

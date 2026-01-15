@@ -1,0 +1,128 @@
+name: Terraform Validate & Test
+
+on:
+  pull_request:
+    paths:
+      - 'Deploy/modules/**'
+      - 'Deploy/environments/**'
+      - 'Deploy/shared/**'
+      - 'tests/**'
+      - '.github/workflows/terraform-test.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'Deploy/modules/**'
+      - 'Deploy/environments/**'
+      - 'Deploy/shared/**'
+
+jobs:
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.x
+
+      - name: Terraform Format Check
+        run: |
+          cd Deploy
+          terraform fmt -recursive -check .
+
+      - name: Terraform Init (shared)
+        run: |
+          cd Deploy/shared
+          terraform init -backend=false
+
+      - name: Terraform Validate
+        run: |
+          cd Deploy/shared
+          terraform validate
+
+  localstack-test:
+    name: LocalStack Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ec2,ecs,rds,s3,sqs,sns,cloudwatch,iam,secretsmanager,logs
+          DEBUG: 1
+        options: >-
+          --health-cmd "awslocal kinesis list-streams"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.x
+
+      - name: Configure AWS credentials
+        run: |
+          mkdir -p ~/.aws
+          cat > ~/.aws/credentials << EOF
+          [default]
+          aws_access_key_id = test
+          aws_secret_access_key = test
+          EOF
+          cat > ~/.aws/config << EOF
+          [default]
+          region = us-east-1
+          EOF
+
+      - name: Test VPC Module
+        run: |
+          cd tests/terraform/test_fixtures/vpc_test
+          terraform init -upgrade
+          terraform validate
+          terraform plan -input=false
+
+      - name: Test ECS Module
+        run: |
+          cd tests/terraform/test_fixtures/ecs_test
+          terraform init -upgrade
+          terraform validate
+          terraform plan -input=false
+
+      - name: Test RDS Module
+        run: |
+          cd tests/terraform/test_fixtures/rds_test
+          terraform init -upgrade
+          terraform validate
+          terraform plan -input=false
+
+  module-tests:
+    name: Test Terraform Modules
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      matrix:
+        module: [vpc, iam, ecs, rds, alb, s3_frontend, sqs, cloudwatch, secrets]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.x
+
+      - name: Validate ${{ matrix.module }} module
+        run: |
+          cd Deploy/modules/${{ matrix.module }}
+          terraform init -backend=false
+          terraform validate

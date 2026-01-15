@@ -1,0 +1,177 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'Deploy/**'
+      - 'Backend/**'
+      - 'Frontend/**'
+      - '.github/workflows/deploy-dev.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-backend:
+    name: Build Backend Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.image.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push Docker image
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: todo-app
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd Backend/3_Run/Web
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  terraform-plan:
+    name: Terraform Plan (Dev)
+    runs-on: ubuntu-latest
+    needs: build-backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.x
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: |
+          cd Deploy/environments/dev
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=us-east-1"
+
+      - name: Terraform Plan
+        run: |
+          cd Deploy/environments/dev
+          terraform plan \
+            -var="docker_image_dev=${{ steps.login-ecr.outputs.registry }}/todo-app:${{ needs.build-backend.outputs.image-tag }}" \
+            -var="rds_master_password=${{ secrets.RDS_MASTER_PASSWORD }}" \
+            -var="jwt_secret=${{ secrets.JWT_SECRET }}" \
+            -out=tfplan
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dev-tfplan
+          path: Deploy/environments/dev/tfplan
+
+  terraform-apply:
+    name: Terraform Apply (Dev)
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.x
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: dev-tfplan
+          path: Deploy/environments/dev/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: |
+          cd Deploy/environments/dev
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=us-east-1"
+
+      - name: Terraform Apply
+        run: |
+          cd Deploy/environments/dev
+          terraform apply -auto-approve tfplan
+
+      - name: Run Database Migrations
+        if: success()
+        run: |
+          cd Backend
+          dotnet ef database update --context TodoContext
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: us-east-1
+
+      - name: Get ALB Endpoint
+        id: endpoint
+        run: |
+          cd Deploy/environments/dev
+          ENDPOINT=$(terraform output -raw alb_dns_name | cut -c8-)
+          echo "url=http://$ENDPOINT" >> $GITHUB_OUTPUT
+
+      - name: Run Smoke Tests
+        run: |
+          cd Frontend
+          npm install
+          npm run test:smoke -- --url=${{ steps.endpoint.outputs.url }}
+
+      - name: Report Status
+        if: always()
+        run: |
+          echo "## Development Deployment 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Endpoint**: ${{ steps.endpoint.outputs.url }}" >> $GITHUB_STEP_SUMMARY

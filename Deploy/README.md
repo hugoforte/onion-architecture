@@ -1,53 +1,114 @@
-# Terraform Infrastructure as Code for Todo App
+# Infrastructure as Code - Terraform Deployment
 
-AWS infrastructure deployment using Terraform with ECS Fargate, RDS PostgreSQL, and Application Load Balancer.
+Complete infrastructure-as-code setup for deploying the Todo App to AWS using Terraform with ECS Fargate, RDS PostgreSQL, CloudFront CDN, and automated CI/CD pipelines.
+
+## Quick Start
+
+### 1. Initialize Terraform Backend
+
+```bash
+cd scripts
+chmod +x init.sh
+./init.sh
+```
+
+### 2. Deploy Development
+
+```bash
+cd environments/dev
+terraform init
+terraform plan -var="rds_master_password=PASS" -var="jwt_secret=SECRET"
+terraform apply
+```
+
+### 3. Deploy Staging
+
+```bash
+cd environments/staging
+terraform init
+terraform plan -var="rds_master_password=PASS" -var="jwt_secret=SECRET"
+terraform apply
+```
+
+### 4. Deploy Production
+
+```bash
+cd environments/prod
+terraform init
+terraform plan \
+  -var="certificate_arn_prod=ARN" \
+  -var="alarm_sns_topic_arn_prod=ARN" \
+  -var="docker_image_prod=IMAGE" \
+  -var="rds_master_password=PASS" \
+  -var="jwt_secret=SECRET"
+terraform apply
+```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
 │            AWS VPC (10.0.0.0/16)            │
+├─────────────────────────────────────────────┤
+│  Public Subnets (ALB, NAT Gateways)         │
+│  ├─ 10.0.1.0/24 (us-east-1a)               │
+│  └─ 10.0.2.0/24 (us-east-1b)               │
+│              ↓                              │
+│  ┌────────────────────────────────────────┐ │
+│  │ Application Load Balancer (HTTPS)      │ │
+│  │ ↓                                       │ │
+│  │ CloudFront CDN (Frontend)               │ │
+│  └────────────────────────────────────────┘ │
+├─────────────────────────────────────────────┤
+│  Private Subnets (ECS, RDS, SQS)            │
+│  ├─ 10.0.10.0/24 (us-east-1a)              │
+│  └─ 10.0.11.0/24 (us-east-1b)              │
 │                                              │
-│  ┌────────────────────────────────────────┐ │
-│  │    Public Subnets (Load Balancer)      │ │
-│  │  - 10.0.1.0/24 (AZ1)                   │ │
-│  │  - 10.0.2.0/24 (AZ2)                   │ │
-│  └────────────────────────────────────────┘ │
-│              ↓        ↓                      │
-│  ┌────────────────────────────────────────┐ │
-│  │   Application Load Balancer (ALB)      │ │
-│  │   - Port 80 → ECS Service              │ │
-│  └────────────────────────────────────────┘ │
-│              ↓        ↓                      │
-│  ┌────────────────────────────────────────┐ │
-│  │  Private Subnets (ECS, RDS)            │ │
-│  │  - 10.0.10.0/24 (AZ1)                  │ │
-│  │  - 10.0.11.0/24 (AZ2)                  │ │
-│  │                                         │ │
-│  │  ECS Fargate Cluster                    │ │
-│  │  - Starter API Tasks                    │ │
-│  │  - Auto-scaling (CPU/Memory)            │ │
-│  │                                         │ │
-│  │  RDS PostgreSQL                         │ │
-│  │  - Multi-AZ (Production)                │ │
-│  │  - Single AZ (Dev/UAT)                  │ │
-│  └────────────────────────────────────────┘ │
+│  ECS Fargate Cluster                         │
+│  ├─ API Service (Auto-scaling)              │
+│  ├─ CloudWatch Logs                         │
+│  └─ Container Insights Monitoring           │
 │                                              │
-│            NAT Gateway (AZ1)                 │
-│            - Outbound internet access       │
+│  RDS PostgreSQL                              │
+│  ├─ Multi-AZ (Production)                   │
+│  ├─ Enhanced Monitoring                     │
+│  └─ Automated Backups                       │
+│                                              │
+│  SQS Queues + DLQ                            │
+│  └─ NServiceBus Integration                 │
+│                                              │
+│  S3 + CloudFront                             │
+│  └─ Frontend Static Hosting                 │
 └─────────────────────────────────────────────┘
 ```
 
+## Modules
+
+- **vpc** - Virtual Private Cloud, subnets, NAT Gateways, VPC Flow Logs
+- **iam** - IAM roles and policies for ECS, RDS, Lambda, S3
+- **alb** - Application Load Balancer, target groups, health checks
+- **ecs** - ECS Fargate cluster, services, task definitions, auto-scaling
+- **rds** - PostgreSQL RDS instance with backups, monitoring, encryption
+- **s3_frontend** - S3 bucket, CloudFront CDN, origin access identity
+- **sqs** - SQS queues with dead-letter queues for messaging
+- **cloudwatch** - Monitoring, dashboards, alarms, log groups
+- **secrets** - Secrets Manager for sensitive configuration
+
+## Environments
+
+| Environment | ECS Tasks | RDS Instance | CloudFront | Auto-scaling | Backups |
+|---|---|---|---|---|---|
+| **dev** | 1 | t3.micro | ❌ | ❌ | 7 days |
+| **staging** | 2 | t3.small | ✅ | 2-4 tasks | 14 days |
+| **prod** | 3 | t3.medium | ✅ | 3-10 tasks | 30 days |
+
 ## Prerequisites
 
-- Terraform >= 1.0
-- AWS CLI configured with credentials
-- ECR repository with pushed container image
-
-## Files
-
-- `main.tf` - Provider configuration
-- `variables.tf` - Input variables
+- Terraform >= 1.5
+- AWS CLI v2
+- AWS Account with appropriate permissions
+- Docker (for LocalStack testing)
+- Git
 - `outputs.tf` - Output values
 - `network.tf` - VPC, subnets, routing
 - `security_groups.tf` - Security groups for ALB, ECS, RDS
