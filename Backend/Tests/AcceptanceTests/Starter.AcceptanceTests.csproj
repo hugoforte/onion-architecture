@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\3_Run\Web\Starter.Web.csproj" />
+    <ProjectReference Include="..\..\2_Application\Services\Starter.Services.csproj" />
+    <ProjectReference Include="..\..\2_Application\Services.Abstractions\Starter.Services.Abstractions.csproj" />
+    <ProjectReference Include="..\..\1_Infrastructure\Infrastructure\Starter.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\0_Core\Domain\Starter.Domain.csproj" />
+    <ProjectReference Include="..\..\0_Core\Contracts\Starter.Contracts.csproj" />
+    <ProjectReference Include="..\..\0_Core\Common\Starter.Common.csproj" />
+    <ProjectReference Include="..\..\0_Core\Messaging\Starter.Messaging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit.Analyzers" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="AutoFixture" />
+    <PackageReference Include="AutoFixture.NUnit3" />
+    <PackageReference Include="Moq" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+</Project>

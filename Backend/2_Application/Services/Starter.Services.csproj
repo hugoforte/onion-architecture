@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Services.Abstractions\Starter.Services.Abstractions.csproj" />
+    <ProjectReference Include="..\..\1_Infrastructure\Infrastructure\Starter.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\0_Core\Domain\Starter.Domain.csproj" />
+    <ProjectReference Include="..\..\0_Core\Contracts\Starter.Contracts.csproj" />
+    <ProjectReference Include="..\..\0_Core\Common\Starter.Common.csproj" />
+    <ProjectReference Include="..\..\0_Core\Messaging\Starter.Messaging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Mapster" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Scrutor" />
+  </ItemGroup>
+</Project>

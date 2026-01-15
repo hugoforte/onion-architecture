@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: starter-postgres
+    environment:
+      POSTGRES_DB: starter
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - starter-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ASP.NET Core API
+  api:
+    build:
+      context: ./Backend/3_Run/Web
+      dockerfile: Dockerfile
+    container_name: starter-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5003
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=starter;Username=postgres;Password=postgres;
+    ports:
+      - '5003:5003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - starter-network
+    volumes:
+      - ./Backend:/app/Backend
+
+  # React Frontend (optional - run npm dev locally instead)
+  # frontend:
+  #   build:
+  #     context: ./Frontend
+  #     dockerfile: Dockerfile
+  #   container_name: starter-frontend
+  #   ports:
+  #     - '5173:5173'
+  #   depends_on:
+  #     - api
+  #   networks:
+  #     - starter-network
+  #   environment:
+  #     VITE_API_BASE_URL: http://api:5003
+
+volumes:
+  postgres_data:
+
+networks:
+  starter-network:
+    driver: bridge

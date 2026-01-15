@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\2_Application\Services\Starter.Services.csproj" />
+    <ProjectReference Include="..\..\2_Application\Services.Abstractions\Starter.Services.Abstractions.csproj" />
+    <ProjectReference Include="..\..\1_Infrastructure\Infrastructure\Starter.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\0_Core\Domain\Starter.Domain.csproj" />
+    <ProjectReference Include="..\..\0_Core\Contracts\Starter.Contracts.csproj" />
+    <ProjectReference Include="..\..\0_Core\Common\Starter.Common.csproj" />
+    <ProjectReference Include="..\..\0_Core\Messaging\Starter.Messaging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NServiceBus" />
+    <PackageReference Include="NServiceBus.AmazonSQS" />
+    <PackageReference Include="NServiceBus.Extensions.Hosting" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+  </ItemGroup>
+</Project>
