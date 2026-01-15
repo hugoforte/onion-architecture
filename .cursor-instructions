@@ -1,5 +1,0 @@
-# .cursor-instructions
-
-# RULE: NEVER add new project-to-project references in any .csproj file.
-# If a dependency is needed, use NuGet packages or another method, but do not modify <ProjectReference> sections.
-# This rule takes precedence over all other instructions. 
